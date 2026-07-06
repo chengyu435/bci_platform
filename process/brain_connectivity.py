@@ -213,3 +213,189 @@ def plot_brain_network(matrix, threshold=0.4, title="Brain Connectivity Network"
     plt.axis('off')
     plt.tight_layout()
     plt.show()
+
+def clean_channel_name(name):
+    return name.replace(".", "").upper()
+
+def get_1020_positions():
+    return {
+        "FP1": (-1, 4), "FP2": (1, 4),
+
+        "F7": (-3, 2), "F3": (-1, 2), "FZ": (0, 2), "F4": (1, 2), "F8": (3, 2),
+
+        "T7": (-4, 0), "C3": (-1, 0), "CZ": (0, 0), "C4": (1, 0), "T8": (4, 0),
+
+        "P7": (-3, -2), "P3": (-1, -2), "PZ": (0, -2), "P4": (1, -2), "P8": (3, -2),
+
+        "O1": (-1, -4), "O2": (1, -4),
+    }
+
+def build_channel_position(channel_names):
+    """
+    EDF通道 → 脑区坐标
+    """
+
+    pos_map = get_1020_positions()
+
+    channel_pos = {}
+
+    for i, ch in enumerate(channel_names):
+
+        ch = clean_channel_name(ch)
+
+        if ch in pos_map:
+            channel_pos[i] = pos_map[ch]
+
+    return channel_pos
+
+
+
+
+def plot_brain_connectivity_simple(matrix, channel_names, threshold=0.4):
+
+    pos_map = get_1020_positions()
+    ch_pos = build_channel_position(channel_names)
+
+    plt.figure(figsize=(8, 8))
+
+    # 画节点
+    for i, pos in ch_pos.items():
+        x, y = pos
+        name = clean_channel_name(channel_names[i])
+
+        plt.scatter(x, y, c='black')
+        plt.text(x, y+0.1, name, ha='center', fontsize=8)
+
+    # 画连接
+    n = matrix.shape[0]
+
+    for i in range(n):
+        if i not in ch_pos:
+            continue
+
+        for j in range(i+1, n):
+
+            if j not in ch_pos:
+                continue
+
+            w = matrix[i, j]
+
+            if abs(w) < threshold:
+                continue
+
+            x1, y1 = ch_pos[i]
+            x2, y2 = ch_pos[j]
+
+            plt.plot([x1, x2], [y1, y2], linewidth=abs(w)*2)
+
+    plt.title("EEG Functional Connectivity (10-20)")
+    plt.axis("off")
+    plt.show()
+
+def plot_brain_connectivity(
+    matrix,
+    channel_names,
+    min_threshold=0.4,
+    max_threshold=1.0,
+    layout="1020",
+    show_weight=False,
+    cmap_name="viridis",
+):
+    """
+    统一脑网络可视化函数（推荐唯一入口）
+    """
+
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    def clean(name):
+        return name.replace(".", "").upper()
+
+    # =========================
+    # 1. 选择布局
+    # =========================
+    if layout == "1020":
+        pos_map = get_1020_positions()
+
+        ch_pos = {}
+        for i, ch in enumerate(channel_names):
+            ch = clean(ch)
+            if ch in pos_map:
+                ch_pos[i] = pos_map[ch]
+
+    elif layout == "circle":
+        n = len(channel_names)
+        angles = np.linspace(0, 2*np.pi, n, endpoint=False)
+        ch_pos = {i: (np.cos(a), np.sin(a)) for i, a in enumerate(angles)}
+    else:
+        raise ValueError("layout must be '1020' or 'circle'")
+
+    # =========================
+    # 2. 颜色映射
+    # =========================
+    weights = [
+    abs(matrix[i, j])
+    for i in range(matrix.shape[0])
+    for j in range(i+1, matrix.shape[1])
+    if min_threshold <= abs(matrix[i, j]) <= max_threshold
+    ]
+    if len(weights) == 0:
+        weights = [min_threshold, max_threshold]
+
+    if len(weights) == 0:
+        weights = [0, 1]
+
+    vmin, vmax = min(weights), max(weights)
+
+    norm = plt.Normalize(vmin=vmin, vmax=vmax)
+    cmap = plt.colormaps[cmap_name]
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+
+    # ===== 画节点 =====
+    for i, pos in ch_pos.items():
+        x, y = pos
+        name = clean(channel_names[i])
+
+        ax.scatter(x, y, c="black", s=40)
+        ax.text(x, y+0.1, name, ha="center", fontsize=8)
+    n = matrix.shape[0]         
+    # ===== 画连接 =====
+    for i in range(n):
+        for j in range(i+1, n):
+
+            if i not in ch_pos or j not in ch_pos:
+                continue
+
+            w = matrix[i, j]
+            weight = abs(w)
+
+            if weight < min_threshold:
+                continue
+
+            if weight > max_threshold:
+                continue
+
+            x1, y1 = ch_pos[i]
+            x2, y2 = ch_pos[j]
+
+            color = cmap(norm(abs(w)))
+
+            ax.plot([x1, x2], [y1, y2], color=color, linewidth=2)
+
+            if show_weight:
+                mx, my = (x1+x2)/2, (y1+y2)/2
+                ax.text(mx, my, f"{w:.2f}", fontsize=7)
+
+    # ===== colorbar =====
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+
+    cbar = fig.colorbar(sm, ax=ax)
+    cbar.set_label("Connectivity strength")
+
+    ax.set_title(f"EEG Connectivity ({layout})")
+    ax.axis("off")
+
+    plt.tight_layout()
+    plt.show()
