@@ -125,7 +125,7 @@ https://physionet.org/content/eegmmidb/1.0.0/
 主要特点：
 
 - 64 通道 EEG
-- 国际 **10-10 电极系统**
+- 国际 **10-20 电极系统**
 - EDF+ 数据格式
 - 采样率 **160 Hz**
 - 包含 Marker 注释通道
