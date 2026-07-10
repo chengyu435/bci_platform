@@ -1,0 +1,7 @@
+numpy
+matplotlib
+tkinter
+PyQt5
+scipy
+pandas
+mne
